@@ -1,0 +1,373 @@
+html::before {
+  content: ';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  margin: auto;
+  width: fit-content;
+  height: fit-content;
+  font-family: monospace;
+  opacity: 0.6;
+  background: rebeccapurple;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+/* MOBILE RESPONSIVE PREVENT SIDE-SCROLLING EXCEPT TABLES */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  box-sizing: border-box;
+}
+
+*, *:before, *:after {
+  box-sizing: border-box;
+}
+
+/* LIGHT INDIAN TRICOLOR BACKGROUND */
+body.tricolor-bg {
+  background: linear-gradient(180deg, #fff3e6 0%, #ffffff 50%, #e6f7ed 100%);
+  min-height: 100vh;
+  color: #1f2937;
+}
+
+.app-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* FLOATING TOAST NOTIFICATION */
+.toast-notification {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  left: 15px;
+  max-width: 380px;
+  margin: 0 auto;
+  background-color: #059669;
+  color: #ffffff;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+  z-index: 2000;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* DASHBOARD LAYOUT */
+.dash-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.dash-header h2 {
+  font-size: 1.75rem;
+  color: #d97706;
+  margin-bottom: 5px;
+}
+
+.dash-header p {
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 15px;
+  width: 100%;
+}
+
+.dash-card {
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dash-card:hover {
+  transform: translateY(-3px);
+  border-color: #f59e0b;
+  box-shadow: 0 15px 20px -5px rgba(245, 158, 11, 0.15);
+}
+
+.dash-card .icon {
+  font-size: 2.5rem;
+  margin-bottom: 8px;
+}
+
+.dash-card .label {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.dash-card small {
+  color: #6b7280;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+/* HEADER & BACK BUTTON */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e5e7eb;
+  width: 100%;
+}
+
+.section-header h1 {
+  font-size: 1.3rem;
+  margin: 0;
+  word-break: break-word;
+}
+
+.back-btn {
+  background: #ffffff;
+  border: 2px solid #059669;
+  color: #059669;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.back-btn:hover {
+  background: #059669;
+  color: #ffffff;
+}
+
+/* FORM & CARD STYLING */
+.card {
+  background: #ffffff;
+  padding: 15px;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid #f3f4f6;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.form-group label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #374151;
+}
+
+.form-group input {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.read-only-input {
+  background-color: #f3f4f6;
+  font-weight: 600;
+}
+
+.input-with-btn {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.input-with-btn input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* BUTTON STYLES (MOBILE-FITTED) */
+.t-btn {
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-sizing: border-box;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.t-btn-accent { background: #2563eb; color: white; }
+.t-btn-warning { background: #d97706; color: white; }
+.t-btn-success { background: #059669; color: white; }
+
+/* TABLE RESPONSIVE SCROLL CONTAINER */
+.table-scroll-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 12px;
+  border-radius: 8px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+}
+
+.data-table th, .data-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.85rem;
+}
+
+.data-table th {
+  background-color: #f9fafb;
+  font-weight: 600;
+}
+
+/* OPTIMIZED POPUP MODALS FOR MOBILE */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.modal-card {
+  background: white;
+  padding: 16px;
+  border-radius: 12px;
+  max-width: 420px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.camera-modal-card {
+  max-width: 360px;
+}
+
+/* E-BILL & INVOICE RECEIPT STYLING */
+.bill-summary {
+  padding: 12px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.bill-summary h2 {
+  font-size: 1.2rem;
+  text-align: center;
+  margin-top: 0;
+}
+
+.memo-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 5px 0;
+  font-size: 0.9rem;
+}
+
+.memo-row.highlight {
+  font-weight: bold;
+  color: #dc2626;
+}
+
+/* E-BILL ACTION BUTTONS - COMPACT & SHIFTED UP */
+.modal-actions {
+  margin-top: 10px;
+  margin-bottom: 4px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.modal-actions .t-btn {
+  flex: 1 1 calc(50% - 6px);
+  padding: 9px 8px;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.modal-actions .t-btn:last-child {
+  flex: 1 1 100%; /* Close button takes full width at bottom */
+}
+
+/* SMALL MOBILE SPECIFIC FIXES */
+@media (max-width: 480px) {
+  .app-container {
+    padding: 8px;
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .modal-card {
+    padding: 12px;
+  }
+
+  .modal-actions {
+    margin-top: 8px;
+    gap: 6px;
+  }
+
+  .modal-actions .t-btn {
+    padding: 8px 6px;
+    font-size: 0.78rem;
+  }
+
+  #report-search, #sync-search {
+    max-width: 100% !important;
+  }
+}
