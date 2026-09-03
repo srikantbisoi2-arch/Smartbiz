@@ -3,224 +3,442 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SmartBiz - Dashboard</title>
-  <link rel="stylesheet" href="style.css">
-  
-  <!-- jsPDF & html2canvas Libraries -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  
-  <!-- Tesseract.js for OCR Scanning -->
+  <title>Smart Ledger Management System</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tesseract OCR -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-</head>
-<body class="tricolor-bg">
+  <!-- HTML2Canvas & jsPDF for Receipt Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-  <!-- Floating Toast Notification -->
-  <div id="toast-msg" class="toast-notification" style="display: none;"></div>
-
-  <div class="app-container">
+  <style>
+    /* Global Styles */
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background-color: #f3f4f6; }
+    .t-btn { transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; border-radius: 0.5rem; }
+    .t-btn-primary { background-color: #2563eb; color: white; }
+    .t-btn-primary:hover { background-color: #1d4ed8; }
+    .t-btn-accent { background-color: #059669; color: white; }
+    .t-btn-accent:hover { background-color: #047857; }
+    .t-btn-warning { background-color: #d97706; color: white; }
+    .t-btn-warning:hover { background-color: #b45309; }
+    .t-btn-secondary { background-color: #4b5563; color: white; }
+    .t-btn-secondary:hover { background-color: #374151; }
     
-    <!-- MAIN DASHBOARD SCREEN -->
-    <section id="dashboard" class="dashboard-screen active">
-      <div class="dash-header">
-        <h2>⚡ SmartBiz Dashboard</h2>
-        <p>Select an option to manage your ledger</p>
+    /* Table Responsive Styling */
+    .table-container { overflow-x: auto; background: white; border-radius: 0.75rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1); }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; }
+    th { background-color: #f8fafc; color: #475569; font-weight: 600; padding: 0.75rem 1rem; border-bottom: 2px solid #e2e8f0; }
+    td { padding: 0.75rem 1rem; border-bottom: 1px solid #e2e8f0; color: #1e293b; }
+    tr:hover { background-color: #f1f5f9; }
+
+    /* Modal Styling */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 50; align-items: center; justify-content: center; }
+  </style>
+</head>
+<body class="p-2 sm:p-6 text-gray-800">
+
+  <!-- Toast Message -->
+  <div id="toast-msg" class="fixed top-4 right-4 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50 transition-all duration-300 hidden">
+    Notification
+  </div>
+
+  <!-- MAIN DASHBOARD SCREEN -->
+  <div id="dashboard" class="max-w-4xl mx-auto">
+    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6 text-center">
+      <h1 class="text-2xl font-bold text-gray-800">Smart Ledger Dashboard</h1>
+      <p class="text-sm text-gray-500 mt-1">Manage shop & AEPS transactions easily</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- AEPS Transactions Box -->
+      <div class="bg-white p-6 rounded-2xl shadow-md border-t-4 border-blue-600 flex flex-col justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-gray-800 mb-2">🏦 AEPS Transactions</h2>
+          <p class="text-sm text-gray-600 mb-6">Record cash withdrawals, credit transactions, and maintain ledger.</p>
+        </div>
+        <button onclick="openSection('aeps-menu')" class="t-btn t-btn-primary w-full py-3 text-base">Open AEPS Section →</button>
       </div>
 
-      <div class="dashboard-grid">
-        <button class="dash-card t-btn-anim" onclick="openSection('billing')">
-          <span class="icon">🧾</span>
-          <span class="label">New Billing Entry</span>
-          <small>Add new transaction record</small>
-        </button>
-
-        <button class="dash-card t-btn-anim" onclick="openSection('reports')">
-          <span class="icon">📊</span>
-          <span class="label">Billing Reports</span>
-          <small>View and manage saved ledger</small>
-        </button>
-
-        <button class="dash-card t-btn-anim" onclick="openSection('syncin')">
-          <span class="icon">📥</span>
-          <span class="label">Sync-In Data</span>
-          <small>Fetch online data from Firebase</small>
-        </button>
+      <!-- Shop Transactions (S.C) Box -->
+      <div class="bg-white p-6 rounded-2xl shadow-md border-t-4 border-emerald-600 flex flex-col justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-gray-800 mb-2">🛍️ Shop / Service (S.C)</h2>
+          <p class="text-sm text-gray-600 mb-6">Track shop services, customer advances, dues, and photo attachments.</p>
+        </div>
+        <button onclick="openSection('shop-menu')" class="t-btn t-btn-accent w-full py-3 text-base">Open Shop Section →</button>
       </div>
-    </section>
+    </div>
+  </div>
 
-    <!-- SECTION 1: NEW BILLING TRANSACTION -->
-    <section id="billing" class="tab-content" style="display: none;">
-      <header class="section-header">
-        <button class="back-btn" onclick="goBackToDashboard()">⬅️ Back to Dashboard</button>
-        <h1>New Billing Transaction</h1>
-      </header>
+  <!-- ---------------------------------------------------- -->
+  <!-- AEPS SECTION MENU -->
+  <!-- ---------------------------------------------------- -->
+  <div id="aeps-menu" class="tab-content max-w-4xl mx-auto hidden">
+    <div class="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm mb-6">
+      <button onclick="goBackToDashboard()" class="t-btn t-btn-secondary px-3 py-1.5 text-sm">← Main Dashboard</button>
+      <h2 class="text-lg font-bold text-blue-600">AEPS Menu</h2>
+    </div>
 
-      <div class="card">
-        <h3>Transaction Details</h3>
-        <div class="form-group">
-          <label>Serial No (Auto):</label>
-          <input type="text" id="serial-no" readonly class="read-only-input">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <button onclick="openSection('billing')" class="bg-white p-6 rounded-xl shadow border hover:border-blue-500 font-semibold text-gray-700 hover:text-blue-600 text-center">
+        ➕ New AEPS Entry
+      </button>
+      <button onclick="openSection('reports')" class="bg-white p-6 rounded-xl shadow border hover:border-blue-500 font-semibold text-gray-700 hover:text-blue-600 text-center">
+        📋 Local Reports
+      </button>
+      <button onclick="openSection('syncin')" class="bg-white p-6 rounded-xl shadow border hover:border-blue-500 font-semibold text-gray-700 hover:text-blue-600 text-center">
+        ☁️ Sync-In Database
+      </button>
+    </div>
+  </div>
 
-          <label>Date & Time (Auto):</label>
-          <input type="text" id="date-time" readonly class="read-only-input">
+  <!-- AEPS ENTRY FORM -->
+  <div id="billing" class="tab-content max-w-2xl mx-auto hidden">
+    <div class="bg-white p-6 rounded-2xl shadow-md">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-gray-800">AEPS Transaction Entry</h2>
+        <button onclick="openSection('aeps-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
+      </div>
 
-          <label>Customer Name:</label>
-          <input type="text" id="cust-name" placeholder="Enter Customer Name">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+        <div>
+          <label class="block font-medium text-gray-700 mb-1">Serial No.</label>
+          <input type="text" id="serial-no" readonly class="w-full bg-gray-100 border rounded-lg p-2 font-bold text-blue-600">
+        </div>
+        <div>
+          <label class="block font-medium text-gray-700 mb-1">Date & Time</label>
+          <input type="text" id="date-time" readonly class="w-full bg-gray-100 border rounded-lg p-2 text-gray-600">
+        </div>
 
-          <label>ID Ref / Aadhaar Number (Exact 12 Digits):</label>
-          <div class="input-with-btn">
-            <input type="text" id="cust-id" maxlength="12" inputmode="numeric" pattern="[0-9]*" placeholder="12 Digit Number" oninput="validateAadhaarInput(this)">
-            <button class="t-btn t-btn-accent" onclick="openCameraModal()">📷 Scan</button>
+        <div class="sm:col-span-2">
+          <label class="block font-medium text-gray-700 mb-1">Customer Name *</label>
+          <input type="text" id="cust-name" placeholder="Enter customer name" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+
+        <div class="sm:col-span-2">
+          <label class="block font-medium text-gray-700 mb-1">Aadhaar / Ref ID</label>
+          <div class="flex gap-2">
+            <input type="text" id="cust-id" maxlength="12" oninput="validateAadhaarInput(this)" placeholder="12-Digit Number" class="w-full border rounded-lg p-2 outline-none">
+            <button onclick="openCameraModal('cust-id')" class="t-btn t-btn-primary px-3 text-xs">📷 Scan</button>
           </div>
+        </div>
 
-          <label>Withdrawal Amount (₹):</label>
-          <input type="number" id="withdraw-amt" placeholder="0.00" oninput="calculatePending()">
+        <div>
+          <label class="block font-medium text-gray-700 mb-1">Withdraw Amount (₹)</label>
+          <input type="number" id="withdraw-amt" oninput="calculatePending()" placeholder="0.00" class="w-full border rounded-lg p-2 outline-none">
+        </div>
+        <div>
+          <label class="block font-medium text-gray-700 mb-1">Paying Amount (₹)</label>
+          <input type="number" id="paying-amt" oninput="calculatePending()" placeholder="0.00" class="w-full border rounded-lg p-2 outline-none">
+        </div>
 
-          <label>Paying Amount (₹):</label>
-          <input type="number" id="paying-amt" placeholder="0.00" oninput="calculatePending()">
+        <div class="sm:col-span-2">
+          <label class="block font-medium text-gray-700 mb-1">Pending Balance (₹)</label>
+          <input type="text" id="pending-amt" readonly value="0.00" class="w-full bg-gray-100 border rounded-lg p-2 font-bold text-red-600">
+        </div>
 
-          <label>Pending Amount (₹ Auto):</label>
-          <input type="number" id="pending-amt" placeholder="0.00" readonly class="read-only-input">
+        <!-- AEPS Photo Upload (Camera / Gallery) -->
+        <div class="sm:col-span-2 border-t pt-3">
+          <label class="block font-medium text-gray-700 mb-1">Capture / Attach Document Photo</label>
+          <input type="file" id="aeps-photo-input" accept="image/*" capture="environment" onchange="uploadPhotoToCloudinary(event, 'aeps')" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+          <input type="hidden" id="aeps-photo-url">
+          <div id="aeps-upload-status" class="text-xs text-emerald-600 mt-1 font-semibold hidden">✓ Photo Uploaded Successfully!</div>
+        </div>
 
-          <label>Remarks:</label>
-          <input type="text" id="remarks" placeholder="Optional notes (e.g. Cash, UPI, Part Payment)">
-          
-          <button class="t-btn t-btn-warning" onclick="submitTransaction('Credit')">📖 Save Data</button>
+        <div class="sm:col-span-2">
+          <label class="block font-medium text-gray-700 mb-1">Remarks</label>
+          <input type="text" id="remarks" placeholder="Optional notes" class="w-full border rounded-lg p-2 outline-none">
         </div>
       </div>
-    </section>
 
-    <!-- OCR CAMERA SCANNER POPUP MODAL -->
-    <div id="camera-modal" class="modal-overlay" style="display: none;">
-      <div class="modal-card camera-modal-card">
-        <h3>📷 OCR Camera Scanner</h3>
-        <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 10px;">Align document within camera or select an image</p>
-        
-        <div class="camera-preview-box">
-          <video id="camera-video" autoplay playsinline style="width: 100%; height: 200px; background: #000; border-radius: 8px; object-fit: cover;"></video>
-          <canvas id="camera-canvas" style="display: none;"></canvas>
-        </div>
+      <div class="flex gap-3 mt-6">
+        <button onclick="submitTransaction('Credit')" class="t-btn t-btn-primary flex-1 py-2.5">Save Transaction</button>
+        <button onclick="resetBillingForm()" class="t-btn t-btn-secondary px-4">Reset</button>
+      </div>
+    </div>
+  </div>
 
-        <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-          <button class="t-btn t-btn-accent" onclick="captureAndScanOCR()">📸 Capture & Scan</button>
-          <label class="t-btn" style="background: #e5e7eb; color: #374151; text-align: center; cursor: pointer;">
-            📁 Upload Image
-            <input type="file" accept="image/*" style="display: none;" onchange="processFileOCR(event)">
-          </label>
-          <small id="ocr-popup-status" style="color: #2563eb; font-weight: 600; text-align: center; display: none;">Processing scan...</small>
-        </div>
+  <!-- AEPS REPORTS -->
+  <div id="reports" class="tab-content max-w-5xl mx-auto hidden">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold text-gray-800">AEPS Local Reports</h2>
+      <button onclick="openSection('aeps-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
+    </div>
 
-        <div style="margin-top: 12px; text-align: right;">
-          <button class="t-btn t-btn-warning" onclick="closeCameraModal()">Close</button>
-        </div>
+    <input type="text" id="report-search" onkeyup="filterReports()" placeholder="Search by name, ID, or SL No..." class="w-full border rounded-lg p-2 mb-4 bg-white">
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>SL No</th>
+            <th>Date/Time</th>
+            <th>Name</th>
+            <th>Ref ID</th>
+            <th>Withdraw</th>
+            <th>Paying</th>
+            <th>Pending</th>
+            <th>Photo</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="reports-list"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- AEPS SYNC-IN -->
+  <div id="syncin" class="tab-content max-w-5xl mx-auto hidden">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold text-gray-800">AEPS Cloud Sync-In Data</h2>
+      <div class="flex gap-2">
+        <button onclick="syncInFromDatabase()" class="t-btn t-btn-primary px-3 py-1 text-xs">🔄 Sync Now</button>
+        <button onclick="openSection('aeps-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
       </div>
     </div>
 
-    <!-- SECTION 2: BILLING REPORTS -->
-    <section id="reports" class="tab-content" style="display: none;">
-      <header class="section-header">
-        <button class="back-btn" onclick="goBackToDashboard()">⬅️ Back to Dashboard</button>
-        <h1>Billing Reports & Records</h1>
-      </header>
+    <input type="text" id="sync-search" onkeyup="filterSyncData()" placeholder="Search synced records..." class="w-full border rounded-lg p-2 mb-4 bg-white">
 
-      <div class="card">
-        <div class="form-group" style="flex-direction: row; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-          <h3>Saved Transactions Ledger</h3>
-          <input type="text" id="report-search" placeholder="Search by Name or Serial No..." onkeyup="filterReports()" style="max-width: 300px;">
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>SL No</th>
+            <th>Date/Time</th>
+            <th>Name</th>
+            <th>Ref ID</th>
+            <th>Withdraw</th>
+            <th>Paying</th>
+            <th>Pending</th>
+            <th>Photo</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="syncin-list"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------- -->
+  <!-- SHOP (S.C) SECTION MENU -->
+  <!-- ---------------------------------------------------- -->
+  <div id="shop-menu" class="tab-content max-w-4xl mx-auto hidden">
+    <div class="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm mb-6">
+      <button onclick="goBackToDashboard()" class="t-btn t-btn-secondary px-3 py-1.5 text-sm">← Main Dashboard</button>
+      <h2 class="text-lg font-bold text-emerald-600">Shop (S.C) Menu</h2>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <button onclick="openSection('sc-billing')" class="bg-white p-6 rounded-xl shadow border hover:border-emerald-500 font-semibold text-gray-700 hover:text-emerald-600 text-center">
+        ➕ New Shop Entry
+      </button>
+      <button onclick="openSection('sc-reports')" class="bg-white p-6 rounded-xl shadow border hover:border-emerald-500 font-semibold text-gray-700 hover:text-emerald-600 text-center">
+        📋 Local Shop Reports
+      </button>
+      <button onclick="openSection('sc-syncin')" class="bg-white p-6 rounded-xl shadow border hover:border-emerald-500 font-semibold text-gray-700 hover:text-emerald-600 text-center">
+        ☁️ Sync S.C Database
+      </button>
+    </div>
+  </div>
+
+  <!-- SHOP (S.C) ENTRY FORM -->
+  <div id="sc-billing" class="tab-content max-w-2xl mx-auto hidden">
+    <div class="bg-white p-6 rounded-2xl shadow-md border-t-4 border-emerald-600">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-gray-800">Shop / Service (S.C) Entry</h2>
+        <button onclick="openSection('shop-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+        <div>
+          <label class="block font-medium text-gray-700 mb-1">Serial No.</label>
+          <input type="text" id="sc-serial-no" readonly class="w-full bg-gray-100 border rounded-lg p-2 font-bold text-emerald-600">
+        </div>
+        <div>
+          <label class="block font-medium text-gray-700 mb-1">Date & Time</label>
+          <input type="text" id="sc-date-time" readonly class="w-full bg-gray-100 border rounded-lg p-2 text-gray-600">
         </div>
 
-        <div class="table-scroll-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Sl No</th>
-                <th>Date & Time</th>
-                <th>Customer Name</th>
-                <th>ID Ref</th>
-                <th>Withdrawal (₹)</th>
-                <th>Paying (₹)</th>
-                <th>Pending (₹)</th>
-                <th>Remarks</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="reports-list">
-              <!-- Dynamic Rows -->
-            </tbody>
-          </table>
+        <div class="sm:col-span-2">
+          <label class="block font-medium text-gray-700 mb-1">Applicant Name *</label>
+          <input type="text" id="sc-cust-name" placeholder="Enter applicant name" class="w-full border rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block font-medium text-gray-700 mb-1">Services Name</label>
+          <input type="text" id="sc-service-name" placeholder="e.g. Photo Print, Form Fill" class="w-full border rounded-lg p-2 outline-none">
+        </div>
+
+        <div>
+          <label class="block font-medium text-gray-700 mb-1">Acknowledgment No.</label>
+          <input type="text" id="sc-cust-id" placeholder="Ack / Ref Number" class="w-full border rounded-lg p-2 outline-none">
+        </div>
+
+        <div>
+          <label class="block font-medium text-gray-700 mb-1">Total Bill Amount (₹)</label>
+          <input type="number" id="sc-total-amt" oninput="calculateScPending()" placeholder="0.00" class="w-full border rounded-lg p-2 outline-none">
+        </div>
+        <div>
+          <label class="block font-medium text-gray-700 mb-1">Receiving Amount (₹)</label>
+          <input type="number" id="sc-paid-amt" oninput="calculateScPending()" placeholder="0.00" class="w-full border rounded-lg p-2 outline-none">
+        </div>
+
+        <div class="sm:col-span-2">
+          <label class="block font-medium text-gray-700 mb-1">Pending Amount (₹)</label>
+          <input type="text" id="sc-pending-amt" readonly value="0.00" class="w-full bg-gray-100 border rounded-lg p-2 font-bold text-red-600">
+        </div>
+
+        <!-- Shop Photo Upload (Camera / Gallery) -->
+        <div class="sm:col-span-2 border-t pt-3">
+          <label class="block font-medium text-gray-700 mb-1">Capture / Attach Document Photo</label>
+          <input type="file" id="sc-photo-input" accept="image/*" capture="environment" onchange="uploadPhotoToCloudinary(event, 'sc')" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+          <input type="hidden" id="sc-photo-url">
+          <div id="sc-upload-status" class="text-xs text-emerald-600 mt-1 font-semibold hidden">✓ Photo Uploaded Successfully!</div>
+        </div>
+
+        <div class="sm:col-span-2">
+          <label class="block font-medium text-gray-700 mb-1">Remarks</label>
+          <input type="text" id="sc-remarks" placeholder="Optional notes" class="w-full border rounded-lg p-2 outline-none">
         </div>
       </div>
-    </section>
 
-    <!-- SECTION 3: SYNC-IN DATA & E-BILL SYSTEM -->
-    <section id="syncin" class="tab-content" style="display: none;">
-      <header class="section-header">
-        <button class="back-btn" onclick="goBackToDashboard()">⬅️ Back to Dashboard</button>
-        <h1>Sync-In Database Records</h1>
-        <button class="t-btn t-btn-accent" onclick="syncInFromDatabase()">📥 Sync-In Data</button>
-      </header>
-
-      <div class="card">
-        <div class="form-group" style="flex-direction: column; gap: 8px;">
-          <label>Search Data (Name, Serial No, or ID Ref):</label>
-          <input type="text" id="sync-search" placeholder="Type Name, SL No, or ID..." onkeyup="filterSyncData()">
-        </div>
-
-        <div class="table-scroll-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Sl No</th>
-                <th>Date & Time</th>
-                <th>Customer Name</th>
-                <th>ID Ref</th>
-                <th>Withdrawal (₹)</th>
-                <th>Paying (₹)</th>
-                <th>Pending (₹)</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody id="syncin-list">
-              <!-- Dynamic Synced Rows -->
-            </tbody>
-          </table>
-        </div>
+      <div class="flex gap-3 mt-6">
+        <button onclick="submitScTransaction()" class="t-btn t-btn-accent flex-1 py-2.5">Save Shop Transaction</button>
+        <button onclick="resetScBillingForm()" class="t-btn t-btn-secondary px-4">Reset</button>
       </div>
-    </section>
+    </div>
+  </div>
 
-    <!-- POPUP MODAL FOR E-BILL / INVOICE VIEW -->
-    <div id="ebill-modal" class="modal-overlay" style="display: none;">
-      <div class="modal-card">
-        <div id="ebill-printable" class="bill-summary" style="padding: 15px; background: #ffffff;">
-          <h2 style="color: #1f2937; margin-bottom: 10px;">E-Bill / Transaction Receipt</h2>
-          <hr><br>
-          <p><strong>Sl No:</strong> <span id="e-sl">-</span></p>
-          <p><strong>Date/Time:</strong> <span id="e-datetime">-</span></p>
-          <p><strong>Customer:</strong> <span id="e-name">-</span></p>
-          <p><strong>ID Ref:</strong> <span id="e-aadhaar">-</span></p>
-          <hr><br>
-          <div class="memo-row"><p>Withdrawal Amount:</p><p>₹<span id="e-withdraw">0.00</span></p></div>
-          <div class="memo-row"><p>Paying Amount:</p><p>₹<span id="e-paying">0.00</span></p></div>
-          <div class="memo-row highlight"><p>Pending Balance:</p><p>₹<span id="e-pending">0.00</span></p></div>
-          <br>
+  <!-- SHOP REPORTS -->
+  <div id="sc-reports" class="tab-content max-w-5xl mx-auto hidden">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold text-gray-800">Shop (S.C) Local Reports</h2>
+      <button onclick="openSection('shop-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
+    </div>
+
+    <input type="text" id="sc-report-search" onkeyup="filterScReports()" placeholder="Search Shop records..." class="w-full border rounded-lg p-2 mb-4 bg-white">
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>SL No</th>
+            <th>Date/Time</th>
+            <th>Applicant Name</th>
+            <th>Service</th>
+            <th>Ack No</th>
+            <th>Total</th>
+            <th>Receiving</th>
+            <th>Pending</th>
+            <th>Photo</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="sc-reports-list"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SHOP SYNC-IN -->
+  <div id="sc-syncin" class="tab-content max-w-5xl mx-auto hidden">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold text-gray-800">Shop (S.C) Cloud Sync-In</h2>
+      <div class="flex gap-2">
+        <button onclick="syncInScDatabase()" class="t-btn t-btn-accent px-3 py-1 text-xs">🔄 Sync Now</button>
+        <button onclick="openSection('shop-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
+      </div>
+    </div>
+
+    <input type="text" id="sc-sync-search" onkeyup="filterScSyncData()" placeholder="Search Shop synced records..." class="w-full border rounded-lg p-2 mb-4 bg-white">
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>SL No</th>
+            <th>Date/Time</th>
+            <th>Applicant Name</th>
+            <th>Service</th>
+            <th>Ack No</th>
+            <th>Total</th>
+            <th>Receiving</th>
+            <th>Pending</th>
+            <th>Photo</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="sc-syncin-list"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ---------------------------------------------------- -->
+  <!-- MODALS -->
+  <!-- ---------------------------------------------------- -->
+
+  <!-- OCR Camera Modal -->
+  <div id="camera-modal" class="modal-overlay">
+    <div class="bg-white p-4 rounded-xl max-w-sm w-full mx-4 shadow-2xl relative text-center">
+      <h3 class="font-bold text-gray-800 mb-2">Scan Document / ID</h3>
+      <video id="camera-video" class="w-full h-48 bg-black rounded-lg object-cover mb-2" autoplay playsinline></video>
+      <canvas id="camera-canvas" class="hidden"></canvas>
+      <div id="ocr-popup-status" class="text-xs text-blue-600 mb-2 font-semibold hidden">Processing OCR...</div>
+      
+      <div class="flex gap-2 justify-center">
+        <button onclick="captureAndScanOCR()" class="t-btn t-btn-primary px-4 py-2 text-xs">📷 Capture & Scan</button>
+        <button onclick="closeCameraModal()" class="t-btn t-btn-secondary px-4 py-2 text-xs">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Photo Preview Modal -->
+  <div id="photo-viewer-modal" class="modal-overlay">
+    <div class="bg-white p-4 rounded-xl max-w-lg w-full mx-4 shadow-2xl relative text-center">
+      <div class="flex justify-between items-center mb-3 border-b pb-2">
+        <h3 class="font-bold text-gray-800">View Document Photo</h3>
+        <button onclick="closePhotoViewer()" class="text-gray-500 hover:text-red-600 font-bold text-xl px-2">✕</button>
+      </div>
+      <div class="max-h-[70vh] overflow-auto flex justify-center">
+        <img id="viewer-img" src="" alt="Document Photo" class="max-w-full rounded-lg shadow">
+      </div>
+      <div class="mt-4">
+        <button onclick="closePhotoViewer()" class="t-btn t-btn-secondary w-full py-2 text-sm">Close Photo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- E-Bill Printable Modal -->
+  <div id="ebill-modal" class="modal-overlay">
+    <div class="bg-white p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl relative">
+      <div id="ebill-printable" class="p-4 bg-white border border-gray-200 rounded-lg text-center">
+        <h2 class="text-lg font-bold text-gray-800">SMART LEDGER</h2>
+        <p class="text-xs text-gray-500 mb-3">Transaction Receipt</p>
+        <hr class="mb-3">
+        <div class="text-xs text-left space-y-1.5">
+          <p><strong>Receipt No:</strong> <span id="e-sl">-</span></p>
+          <p><strong>Date & Time:</strong> <span id="e-datetime">-</span></p>
+          <p><strong>Name:</strong> <span id="e-name">-</span></p>
+          <p><strong>ID / Ref / Ack:</strong> <span id="e-aadhaar">-</span></p>
+          <p id="e-service-row" class="hidden"><strong>Service Name:</strong> <span id="e-service">-</span></p>
+          <hr class="my-2">
+          <p><strong>Total Amount:</strong> ₹<span id="e-withdraw">0.00</span></p>
+          <p><strong>Received / Paid:</strong> ₹<span id="e-paying">0.00</span></p>
+          <p><strong>Pending Balance:</strong> <span class="font-bold text-red-600">₹<span id="e-pending">0.00</span></span></p>
           <p><strong>Remarks:</strong> <span id="e-remarks">-</span></p>
-          
-          <!-- DIGITAL SIGNATURE SECTION -->
-          <div class="signature-block" style="margin-top: 25px; text-align: right; border-top: 1px dashed #d1d5db; padding-top: 10px;">
-            <p style="font-size: 0.8rem; color: #6b7280; margin-bottom: 2px;">Authorized Signature</p>
-            <h4 style="font-family: 'Georgia', serif; font-style: italic; color: #1e3a8a; margin: 0; font-size: 1.1rem;">Srk bishoyi</h4>
-          </div>
-        </div>
-
-        <div class="modal-actions" style="margin-top: 15px; display: flex; gap: 8px; flex-wrap: wrap;">
-          <button class="t-btn t-btn-success" style="flex: 1;" onclick="downloadEBillReceipt('jpg')">🖼️ JPG</button>
-          <button class="t-btn t-btn-accent" style="flex: 1;" onclick="downloadEBillReceipt('pdf')">📄 PDF</button>
-          <button class="t-btn t-btn-accent" style="flex: 1; background: #16a34a; color: #ffffff;" onclick="printEBillThermal()">🖨️ Print</button>
-          <button class="t-btn t-btn-warning" onclick="closeEBillModal()">❌ Close</button>
         </div>
       </div>
-    </div>
 
+      <div class="mt-4 space-y-2">
+        <div class="flex gap-2">
+          <button onclick="downloadEBillReceipt('jpg')" class="t-btn t-btn-accent flex-1 py-2 text-xs">🖼️ JPG</button>
+          <button onclick="downloadEBillReceipt('pdf')" class="t-btn t-btn-primary flex-1 py-2 text-xs">📄 PDF</button>
+        </div>
+        <button onclick="printEBillThermal()" class="t-btn t-btn-warning w-full py-2 text-xs">🖨️ RawBT Print</button>
+        <button onclick="closeEBillModal()" class="t-btn t-btn-secondary w-full py-2 text-xs">Close</button>
+      </div>
+    </div>
   </div>
 
   <script src="script.js"></script>
