@@ -55,10 +55,10 @@
       <!-- AEPS Transactions Box -->
       <div class="bg-white p-6 rounded-2xl shadow-md border-t-4 border-blue-600 flex flex-col justify-between">
         <div>
-          <h2 class="text-xl font-bold text-gray-800 mb-2">🏦 AEPS Transactions</h2>
+          <h2 class="text-xl font-bold text-gray-800 mb-2">💳 AEPS Transactions</h2>
           <p class="text-sm text-gray-600 mb-6">Record cash withdrawals, credit transactions, and maintain ledger.</p>
         </div>
-        <button onclick="openSection('aeps-menu')" class="t-btn t-btn-primary w-full py-3 text-base">Open AEPS Section →</button>
+        <button onclick="openSection('aeps-menu')" class="t-btn t-btn-primary w-full py-3 text-base">Open AEPS Section 👉</button>
       </div>
 
       <!-- Shop Transactions (S.C) Box -->
@@ -67,17 +67,15 @@
           <h2 class="text-xl font-bold text-gray-800 mb-2">🛍️ Shop / Service (S.C)</h2>
           <p class="text-sm text-gray-600 mb-6">Track shop services, customer advances, dues, and photo attachments.</p>
         </div>
-        <button onclick="openSection('shop-menu')" class="t-btn t-btn-accent w-full py-3 text-base">Open Shop Section →</button>
+        <button onclick="openSection('shop-menu')" class="t-btn t-btn-accent w-full py-3 text-base">Open Shop Section 👉</button>
       </div>
     </div>
   </div>
 
-  <!-- ---------------------------------------------------- -->
   <!-- AEPS SECTION MENU -->
-  <!-- ---------------------------------------------------- -->
   <div id="aeps-menu" class="tab-content max-w-4xl mx-auto hidden">
     <div class="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm mb-6">
-      <button onclick="goBackToDashboard()" class="t-btn t-btn-secondary px-3 py-1.5 text-sm">← Main Dashboard</button>
+      <button onclick="goBackToDashboard()" class="t-btn t-btn-secondary px-3 py-1.5 text-sm">⬅️ Main Dashboard</button>
       <h2 class="text-lg font-bold text-blue-600">AEPS Menu</h2>
     </div>
 
@@ -89,7 +87,7 @@
         📋 Local Reports
       </button>
       <button onclick="openSection('syncin')" class="bg-white p-6 rounded-xl shadow border hover:border-blue-500 font-semibold text-gray-700 hover:text-blue-600 text-center">
-        ☁️ Sync-In Database
+        ☁️ Sync Database
       </button>
     </div>
   </div>
@@ -118,7 +116,7 @@
         </div>
 
         <div class="sm:col-span-2">
-          <label class="block font-medium text-gray-700 mb-1">Aadhaar / Ref ID</label>
+          <label class="block font-medium text-gray-700 mb-1">Ref / ID No.</label>
           <div class="flex gap-2">
             <input type="text" id="cust-id" maxlength="12" oninput="validateAadhaarInput(this)" placeholder="12-Digit Number" class="w-full border rounded-lg p-2 outline-none">
             <button onclick="openCameraModal('cust-id')" class="t-btn t-btn-primary px-3 text-xs">📷 Scan</button>
@@ -139,12 +137,12 @@
           <input type="text" id="pending-amt" readonly value="0.00" class="w-full bg-gray-100 border rounded-lg p-2 font-bold text-red-600">
         </div>
 
-        <!-- AEPS Photo Upload (Camera / Gallery) -->
+        <!-- Local Photo Capture -->
         <div class="sm:col-span-2 border-t pt-3">
           <label class="block font-medium text-gray-700 mb-1">Capture / Attach Document Photo</label>
-          <input type="file" id="aeps-photo-input" accept="image/*" capture="environment" onchange="uploadPhotoToCloudinary(event, 'aeps')" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+          <input type="file" id="aeps-photo-input" accept="image/*" capture="environment" onchange="handleLocalPhotoSelect(event, 'aeps')" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
           <input type="hidden" id="aeps-photo-url">
-          <div id="aeps-upload-status" class="text-xs text-emerald-600 mt-1 font-semibold hidden">✓ Photo Uploaded Successfully!</div>
+          <div id="aeps-upload-status" class="text-xs text-emerald-600 mt-1 font-semibold hidden">✓ Photo Saved Locally!</div>
         </div>
 
         <div class="sm:col-span-2">
@@ -164,7 +162,10 @@
   <div id="reports" class="tab-content max-w-5xl mx-auto hidden">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-xl font-bold text-gray-800">AEPS Local Reports</h2>
-      <button onclick="openSection('aeps-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
+      <div class="flex gap-2">
+        <button onclick="syncOutAepsData()" class="t-btn t-btn-accent px-3 py-1 text-xs">🚀 Sync-Out Database</button>
+        <button onclick="openSection('aeps-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
+      </div>
     </div>
 
     <input type="text" id="report-search" onkeyup="filterReports()" placeholder="Search by name, ID, or SL No..." class="w-full border rounded-lg p-2 mb-4 bg-white">
@@ -181,6 +182,7 @@
             <th>Paying</th>
             <th>Pending</th>
             <th>Photo</th>
+            <th>Sync Status</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -192,9 +194,9 @@
   <!-- AEPS SYNC-IN -->
   <div id="syncin" class="tab-content max-w-5xl mx-auto hidden">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-bold text-gray-800">AEPS Cloud Sync-In Data</h2>
+      <h2 class="text-xl font-bold text-gray-800">AEPS Cloud Sync Database</h2>
       <div class="flex gap-2">
-        <button onclick="syncInFromDatabase()" class="t-btn t-btn-primary px-3 py-1 text-xs">🔄 Sync Now</button>
+        <button onclick="syncInFromDatabase()" class="t-btn t-btn-primary px-3 py-1 text-xs">🔄 Fetch Database</button>
         <button onclick="openSection('aeps-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
       </div>
     </div>
@@ -221,12 +223,10 @@
     </div>
   </div>
 
-  <!-- ---------------------------------------------------- -->
   <!-- SHOP (S.C) SECTION MENU -->
-  <!-- ---------------------------------------------------- -->
   <div id="shop-menu" class="tab-content max-w-4xl mx-auto hidden">
     <div class="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm mb-6">
-      <button onclick="goBackToDashboard()" class="t-btn t-btn-secondary px-3 py-1.5 text-sm">← Main Dashboard</button>
+      <button onclick="goBackToDashboard()" class="t-btn t-btn-secondary px-3 py-1.5 text-sm">⬅️ Main Dashboard</button>
       <h2 class="text-lg font-bold text-emerald-600">Shop (S.C) Menu</h2>
     </div>
 
@@ -290,12 +290,12 @@
           <input type="text" id="sc-pending-amt" readonly value="0.00" class="w-full bg-gray-100 border rounded-lg p-2 font-bold text-red-600">
         </div>
 
-        <!-- Shop Photo Upload (Camera / Gallery) -->
+        <!-- Shop Photo Upload -->
         <div class="sm:col-span-2 border-t pt-3">
           <label class="block font-medium text-gray-700 mb-1">Capture / Attach Document Photo</label>
-          <input type="file" id="sc-photo-input" accept="image/*" capture="environment" onchange="uploadPhotoToCloudinary(event, 'sc')" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+          <input type="file" id="sc-photo-input" accept="image/*" capture="environment" onchange="handleLocalPhotoSelect(event, 'sc')" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
           <input type="hidden" id="sc-photo-url">
-          <div id="sc-upload-status" class="text-xs text-emerald-600 mt-1 font-semibold hidden">✓ Photo Uploaded Successfully!</div>
+          <div id="sc-upload-status" class="text-xs text-emerald-600 mt-1 font-semibold hidden">✓ Photo Saved Locally!</div>
         </div>
 
         <div class="sm:col-span-2">
@@ -315,7 +315,10 @@
   <div id="sc-reports" class="tab-content max-w-5xl mx-auto hidden">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-xl font-bold text-gray-800">Shop (S.C) Local Reports</h2>
-      <button onclick="openSection('shop-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
+      <div class="flex gap-2">
+        <button onclick="syncOutScData()" class="t-btn t-btn-accent px-3 py-1 text-xs">🚀 Sync-Out Database</button>
+        <button onclick="openSection('shop-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
+      </div>
     </div>
 
     <input type="text" id="sc-report-search" onkeyup="filterScReports()" placeholder="Search Shop records..." class="w-full border rounded-lg p-2 mb-4 bg-white">
@@ -333,6 +336,7 @@
             <th>Receiving</th>
             <th>Pending</th>
             <th>Photo</th>
+            <th>Sync Status</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -344,9 +348,9 @@
   <!-- SHOP SYNC-IN -->
   <div id="sc-syncin" class="tab-content max-w-5xl mx-auto hidden">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-bold text-gray-800">Shop (S.C) Cloud Sync-In</h2>
+      <h2 class="text-xl font-bold text-gray-800">Shop (S.C) Cloud Sync Database</h2>
       <div class="flex gap-2">
-        <button onclick="syncInScDatabase()" class="t-btn t-btn-accent px-3 py-1 text-xs">🔄 Sync Now</button>
+        <button onclick="syncInScDatabase()" class="t-btn t-btn-accent px-3 py-1 text-xs">🔄 Fetch Database</button>
         <button onclick="openSection('shop-menu')" class="t-btn t-btn-secondary px-3 py-1 text-xs">Back</button>
       </div>
     </div>
@@ -374,9 +378,7 @@
     </div>
   </div>
 
-  <!-- ---------------------------------------------------- -->
   <!-- MODALS -->
-  <!-- ---------------------------------------------------- -->
 
   <!-- OCR Camera Modal -->
   <div id="camera-modal" class="modal-overlay">
@@ -409,7 +411,7 @@
     </div>
   </div>
 
-  <!-- E-Bill Printable Modal -->
+  <!-- E-Bill Printable Modal with Authorised Signatory -->
   <div id="ebill-modal" class="modal-overlay">
     <div class="bg-white p-6 rounded-2xl max-w-sm w-full mx-4 shadow-2xl relative">
       <div id="ebill-printable" class="p-4 bg-white border border-gray-200 rounded-lg text-center">
@@ -427,6 +429,16 @@
           <p><strong>Received / Paid:</strong> ₹<span id="e-paying">0.00</span></p>
           <p><strong>Pending Balance:</strong> <span class="font-bold text-red-600">₹<span id="e-pending">0.00</span></span></p>
           <p><strong>Remarks:</strong> <span id="e-remarks">-</span></p>
+        </div>
+
+        <!-- Authorised Signatory Section -->
+        <div class="mt-8 pt-4 flex flex-col items-end border-t border-dashed border-gray-300">
+          <div class="w-32 text-center">
+            <div class="h-8 flex items-center justify-center">
+              <span class="text-[10px] text-gray-400 italic">[ Stamp / Sign ]</span>
+            </div>
+            <p class="text-[11px] font-bold text-gray-700 border-t border-gray-800 pt-1">Authorised Signatory</p>
+          </div>
         </div>
       </div>
 
