@@ -8,16 +8,18 @@ const AEPS_FIREBASE_DB_URL = "https://smartldger-default-rtdb.firebaseio.com/tra
 const SC_FIREBASE_DB_URL = "https://smartldger-default-rtdb.firebaseio.com/sc_transactions";
 
 // Global State Management - AEPS
-let billingRecords = []; 
+let billingRecords = JSON.parse(localStorage.getItem('aeps_local_records')) || []; 
 let syncedDatabaseRecords = []; 
-let slCounter = 1001;
+let slCounter = parseInt(localStorage.getItem('aeps_sl_counter')) || 1001;
 let editingRecordIndex = -1;
+let editingCloudRecordKey = null;
 
 // Global State Management - Shop (S.C)
-let scBillingRecords = [];
+let scBillingRecords = JSON.parse(localStorage.getItem('sc_local_records')) || [];
 let scSyncedDatabaseRecords = [];
-let scSlCounter = 1; // Produces S.C0001, S.C0002...
+let scSlCounter = parseInt(localStorage.getItem('sc_sl_counter')) || 1;
 let scEditingRecordIndex = -1;
+let scEditingCloudRecordKey = null;
 
 let cameraStream = null;
 let currentOcrTargetId = 'cust-id';
@@ -26,8 +28,8 @@ let currentOcrTargetId = 'cust-id';
 document.addEventListener('DOMContentLoaded', () => {
   initFormDefaults();
   initScFormDefaults();
-  loadInitialData();
-  loadInitialScData();
+  renderReports();
+  renderScReports();
 });
 
 // Toast notification helper message
@@ -48,24 +50,35 @@ function formatScSerialNo(num) {
 }
 
 // ----------------------------------------------------
-// CLOUDINARY IMAGE UPLOAD LOGIC
+// LOCAL PHOTO HANDLING & CLOUDINARY UPLOAD LOGIC
 // ----------------------------------------------------
 
-async function uploadPhotoToCloudinary(event, formType) {
+function handleLocalPhotoSelect(event, formType) {
   const file = event.target.files[0];
   if (!file) return;
 
-  const statusElem = document.getElementById(`${formType}-upload-status`);
-  const hiddenUrlElem = document.getElementById(`${formType}-photo-url`);
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const base64Image = e.target.result;
+    document.getElementById(`${formType}-photo-url`).value = base64Image;
+    const statusElem = document.getElementById(`${formType}-upload-status`);
+    if (statusElem) {
+      statusElem.classList.remove('hidden');
+      statusElem.innerText = "✓ Photo Captured Locally!";
+      statusElem.style.color = "#059669";
+    }
+    showToastMessage("Photo stored in local memory.");
+  };
+  reader.readAsDataURL(file);
+}
 
-  if (statusElem) {
-    statusElem.classList.remove('hidden');
-    statusElem.innerText = "Uploading photo to cloud...";
-    statusElem.style.color = "#2563eb";
+async function uploadBase64ToCloudinary(base64String) {
+  if (!base64String || !base64String.startsWith('data:image')) {
+    return base64String;
   }
 
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', base64String);
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
   try {
@@ -73,23 +86,11 @@ async function uploadPhotoToCloudinary(event, formType) {
       method: 'POST',
       body: formData
     });
-
     const data = await response.json();
-
-    if (data.secure_url) {
-      if (hiddenUrlElem) hiddenUrlElem.value = data.secure_url;
-      if (statusElem) {
-        statusElem.innerText = "✓ Photo Uploaded Successfully!";
-        statusElem.style.color = "#059669";
-      }
-      showToastMessage("Photo uploaded to Cloudinary!");
-    } else {
-      throw new Error(data.error?.message || "Upload failed");
-    }
+    return data.secure_url || base64String;
   } catch (err) {
     console.error("Cloudinary Upload Error:", err);
-    alert("Failed to upload photo. Please check internet or preset settings.");
-    if (statusElem) statusElem.classList.add('hidden');
+    return base64String;
   }
 }
 
@@ -110,7 +111,7 @@ function closePhotoViewer() {
 }
 
 // ----------------------------------------------------
-// DASHBOARD & MULTI-LEVEL NAVIGATION LOGIC
+// DASHBOARD & NAVIGATION LOGIC
 // ----------------------------------------------------
 
 function openSection(sectionId) {
@@ -125,6 +126,9 @@ function openSection(sectionId) {
   if (targetSection) {
     targetSection.style.display = 'block';
   }
+
+  if (sectionId === 'billing') initFormDefaults();
+  if (sectionId === 'sc-billing') initScFormDefaults();
 }
 
 function goBackToDashboard() {
@@ -137,57 +141,59 @@ function goBackToDashboard() {
 }
 
 // ----------------------------------------------------
-// 1. AEPS DATA LOAD & TRANSACTION LOGIC
+// 1. AEPS LOCAL SAVE, EDIT & SYNC LOGIC
 // ----------------------------------------------------
 
-async function loadInitialData() {
+async function fetchLatestAepsSerialNo() {
+  const serialElem = document.getElementById('serial-no');
+  if (!serialElem) return;
+
   try {
     const response = await fetch(`${AEPS_FIREBASE_DB_URL}.json`);
     const data = await response.json();
-    billingRecords = [];
 
-    let maxSlNo = 1000;
+    let maxSl = 1000;
 
     if (data) {
-      Object.keys(data).forEach(firebaseKey => {
-        const item = data[firebaseKey];
-        billingRecords.unshift({
-          fbKey: firebaseKey,
-          isEdited: item.isEdited || false,
-          photoUrl: item.photoUrl || '-',
-          ...item
-        });
-
-        if (item.slNo && item.slNo.startsWith("SL-")) {
-          const numPart = parseInt(item.slNo.replace("SL-", ""), 10);
-          if (!isNaN(numPart) && numPart > maxSlNo) {
-            maxSlNo = numPart;
-          }
+      Object.values(data).forEach(item => {
+        if (item.slNo) {
+          const num = parseInt(item.slNo.replace(/[^0-9]/g, '')) || 0;
+          if (num > maxSl) maxSl = num;
         }
       });
     }
 
-    slCounter = maxSlNo + 1;
-    initFormDefaults();
-    renderReports();
-  } catch (error) {
-    console.error("AEPS Firebase Load Error:", error);
+    billingRecords.forEach(item => {
+      if (item.slNo) {
+        const num = parseInt(item.slNo.replace(/[^0-9]/g, '')) || 0;
+        if (num > maxSl) maxSl = num;
+      }
+    });
+
+    slCounter = maxSl + 1;
+    localStorage.setItem('aeps_sl_counter', slCounter);
+
+    if (editingRecordIndex === -1 && !editingCloudRecordKey) {
+      serialElem.value = "SL-" + slCounter;
+    }
+  } catch (err) {
+    console.error("Error fetching latest AEPS SL No:", err);
+    if (editingRecordIndex === -1 && !editingCloudRecordKey) {
+      serialElem.value = "SL-" + slCounter;
+    }
   }
 }
 
 function initFormDefaults() {
-  const serialElem = document.getElementById('serial-no');
   const dateElem = document.getElementById('date-time');
-
   const now = new Date();
   const formattedDateTime = now.toLocaleDateString('en-IN') + ' ' + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-  if (serialElem && editingRecordIndex === -1) {
-    serialElem.value = "SL-" + slCounter;
-  }
-  if (dateElem && editingRecordIndex === -1) {
+  if (dateElem && editingRecordIndex === -1 && !editingCloudRecordKey) {
     dateElem.value = formattedDateTime;
   }
+
+  fetchLatestAepsSerialNo();
 }
 
 function calculatePending() {
@@ -229,63 +235,50 @@ async function submitTransaction(type = 'Credit') {
     remarks: remarks,
     photoUrl: photoUrl,
     type: type,
+    isSynced: false,
     isEdited: false
   };
 
-  let savedRecord = { ...recordPayload };
-
-  if (editingRecordIndex > -1) {
-    const currentRecord = billingRecords[editingRecordIndex];
-    const fbKey = currentRecord ? currentRecord.fbKey : null;
-
-    recordPayload.fbKey = fbKey;
-    recordPayload.isEdited = true;
-
-    if (editingRecordIndex < billingRecords.length) {
-      billingRecords[editingRecordIndex] = recordPayload;
-    }
-
-    if (fbKey) {
-      try {
-        await fetch(`${AEPS_FIREBASE_DB_URL}/${fbKey}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(recordPayload)
-        });
-        showToastMessage("AEPS Record updated in Firebase!");
-      } catch (err) {
-        console.error("AEPS Firebase Edit Error:", err);
-      }
-    }
-    editingRecordIndex = -1;
-  } else {
+  if (editingCloudRecordKey) {
     try {
-      const response = await fetch(`${AEPS_FIREBASE_DB_URL}.json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(recordPayload)
-      });
-      const resData = await response.json();
-      
-      if (resData && resData.name) {
-        savedRecord.fbKey = resData.name;
+      let finalPhoto = photoUrl;
+      if (photoUrl && photoUrl.startsWith('data:image')) {
+        finalPhoto = await uploadBase64ToCloudinary(photoUrl);
       }
-
-      billingRecords.unshift(savedRecord);
-      slCounter++;
-      showToastMessage("AEPS Transaction saved!");
-    } catch (error) {
-      console.error("AEPS Firebase Save Error:", error);
-      billingRecords.unshift(savedRecord);
-      slCounter++;
-      showToastMessage("Saved locally!");
+      const cloudPayload = { ...recordPayload, photoUrl: finalPhoto, isSynced: true, fbKey: editingCloudRecordKey };
+      
+      await fetch(`${AEPS_FIREBASE_DB_URL}/${editingCloudRecordKey}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cloudPayload)
+      });
+      showToastMessage("Cloud AEPS Record updated!");
+      editingCloudRecordKey = null;
+      syncInFromDatabase();
+      openSection('syncin');
+    } catch (e) {
+      console.error(e);
+      showToastMessage("Failed to update Cloud Record.");
     }
+  } else if (editingRecordIndex > -1) {
+    billingRecords[editingRecordIndex] = { ...billingRecords[editingRecordIndex], ...recordPayload, isSynced: false, isEdited: true };
+    editingRecordIndex = -1;
+    showToastMessage("AEPS Record updated locally!");
+    localStorage.setItem('aeps_local_records', JSON.stringify(billingRecords));
+    renderReports();
+    openSection('aeps-menu');
+  } else {
+    billingRecords.unshift(recordPayload);
+    slCounter++;
+    localStorage.setItem('aeps_sl_counter', slCounter);
+    showToastMessage("AEPS Entry saved locally!");
+    localStorage.setItem('aeps_local_records', JSON.stringify(billingRecords));
+    renderReports();
+    openSection('aeps-menu');
   }
 
-  renderReports();
   resetBillingForm();
-  openSection('aeps-menu');
-  openEBillFromRecord(savedRecord);
+  openEBillFromRecord(recordPayload);
 }
 
 function resetBillingForm() {
@@ -302,6 +295,7 @@ function resetBillingForm() {
   if (statusElem) statusElem.classList.add('hidden');
 
   editingRecordIndex = -1;
+  editingCloudRecordKey = null;
   initFormDefaults();
   calculatePending();
 }
@@ -313,7 +307,7 @@ function renderReports() {
   tbody.innerHTML = '';
 
   if (billingRecords.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-gray-500">No AEPS records found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-gray-500">No AEPS records found locally.</td></tr>`;
     return;
   }
 
@@ -322,9 +316,15 @@ function renderReports() {
       ? `<button class="t-btn t-btn-primary px-2 py-1 text-xs" onclick="viewPhotoModal('${record.photoUrl}')">📷 View</button>` 
       : '-';
 
-    let actionBtnHTML = !record.isEdited 
-      ? `<button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="editReportRecord(${index})">✏️ Edit</button>`
-      : `<span class="text-xs text-gray-500 font-semibold">Edited</span>`;
+    let syncBadge = record.isSynced 
+      ? `<span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full font-bold">Synced ✔️</span>` 
+      : `<span class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-bold">Pending ⏳</span>`;
+
+    // Edit button enable ONLY IF pending amount > 0
+    let hasPending = parseFloat(record.pending || 0) > 0;
+    let actionBtnHTML = hasPending 
+      ? `<button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="editReportRecord(${index})">✏️ Edit</button>` 
+      : `<span class="text-xs text-gray-400 italic">No Pending</span>`;
 
     tbody.innerHTML += `
       <tr>
@@ -336,6 +336,7 @@ function renderReports() {
         <td>₹${parseFloat(record.paying || 0).toFixed(2)}</td>
         <td class="font-bold ${(record.pending || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">₹${parseFloat(record.pending || 0).toFixed(2)}</td>
         <td>${photoBtn}</td>
+        <td>${syncBadge}</td>
         <td>${actionBtnHTML}</td>
       </tr>
     `;
@@ -345,6 +346,7 @@ function renderReports() {
 function editReportRecord(index) {
   const record = billingRecords[index];
   editingRecordIndex = index;
+  editingCloudRecordKey = null;
 
   openSection('billing');
 
@@ -358,6 +360,53 @@ function editReportRecord(index) {
   if (document.getElementById('aeps-photo-url')) document.getElementById('aeps-photo-url').value = record.photoUrl || '-';
 
   calculatePending();
+}
+
+async function syncOutAepsData() {
+  const unsynced = billingRecords.filter(r => !r.isSynced);
+  if (unsynced.length === 0) {
+    showToastMessage("All records are already synced!");
+    return;
+  }
+
+  showToastMessage("Syncing records to Database...");
+
+  for (let record of billingRecords) {
+    if (!record.isSynced) {
+      try {
+        if (record.photoUrl && record.photoUrl.startsWith('data:image')) {
+          record.photoUrl = await uploadBase64ToCloudinary(record.photoUrl);
+        }
+
+        const cloudPayload = { ...record, isSynced: true };
+
+        let response;
+        if (record.fbKey) {
+          response = await fetch(`${AEPS_FIREBASE_DB_URL}/${record.fbKey}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cloudPayload)
+          });
+        } else {
+          response = await fetch(`${AEPS_FIREBASE_DB_URL}.json`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cloudPayload)
+          });
+          const resData = await response.json();
+          if (resData && resData.name) record.fbKey = resData.name;
+        }
+
+        record.isSynced = true;
+      } catch (err) {
+        console.error("Sync-out Error:", err);
+      }
+    }
+  }
+
+  localStorage.setItem('aeps_local_records', JSON.stringify(billingRecords));
+  renderReports();
+  showToastMessage("AEPS Sync-Out Completed ✔️");
 }
 
 function filterReports() {
@@ -384,7 +433,6 @@ async function syncInFromDatabase() {
       Object.keys(data).forEach(key => {
         syncedDatabaseRecords.unshift({
           fbKey: key,
-          isEdited: data[key].isEdited || false,
           photoUrl: data[key].photoUrl || '-',
           ...data[key]
         });
@@ -392,7 +440,7 @@ async function syncInFromDatabase() {
     }
 
     renderSyncInList();
-    showToastMessage("AEPS Data synced!");
+    showToastMessage("AEPS Cloud Data Fetched!");
   } catch (error) {
     console.error("AEPS Sync Error:", error);
     showToastMessage("Failed to fetch AEPS data.");
@@ -407,7 +455,7 @@ function renderSyncInList() {
   tbody.innerHTML = '';
 
   if (syncedDatabaseRecords.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-gray-500">Click 'Sync Now' to fetch records.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-gray-500">Click 'Fetch Database' to view cloud records.</td></tr>`;
     return;
   }
 
@@ -428,8 +476,8 @@ function renderSyncInList() {
         <td>${photoBtn}</td>
         <td>
           <div class="flex gap-1">
-            <button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="openEBillModal(${index})">🧾 Bill</button>
-            <button class="t-btn t-btn-primary px-2 py-1 text-xs" onclick="editSyncRecord(${index})">✏️ Edit</button>
+            <button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="editCloudRecord(${index})">✏️ Edit</button>
+            <button class="t-btn t-btn-primary px-2 py-1 text-xs" onclick="openEBillModal(${index})">🧾 Bill</button>
             <button class="t-btn t-btn-warning px-2 py-1 text-xs bg-red-600" onclick="deleteSyncRecord(${index})">🗑️</button>
           </div>
         </td>
@@ -438,15 +486,10 @@ function renderSyncInList() {
   });
 }
 
-function editSyncRecord(index) {
+function editCloudRecord(index) {
   const record = syncedDatabaseRecords[index];
-
-  editingRecordIndex = billingRecords.findIndex(r => r.fbKey === record.fbKey || r.slNo === record.slNo);
-  
-  if (editingRecordIndex === -1) {
-    billingRecords.unshift(record);
-    editingRecordIndex = 0;
-  }
+  editingCloudRecordKey = record.fbKey;
+  editingRecordIndex = -1;
 
   openSection('billing');
 
@@ -463,13 +506,13 @@ function editSyncRecord(index) {
 }
 
 async function deleteSyncRecord(index) {
-  if (confirm("Delete this AEPS record?")) {
+  if (confirm("Delete this record permanently from cloud?")) {
     const record = syncedDatabaseRecords[index];
 
     if (record && record.fbKey) {
       try {
         await fetch(`${AEPS_FIREBASE_DB_URL}/${record.fbKey}.json`, { method: 'DELETE' });
-        showToastMessage("AEPS Record deleted.");
+        showToastMessage("Cloud Record deleted.");
       } catch (err) {
         console.error("AEPS Delete Error:", err);
       }
@@ -477,6 +520,7 @@ async function deleteSyncRecord(index) {
 
     syncedDatabaseRecords.splice(index, 1);
     billingRecords = billingRecords.filter(r => r.fbKey !== record.fbKey);
+    localStorage.setItem('aeps_local_records', JSON.stringify(billingRecords));
     renderSyncInList();
     renderReports();
   }
@@ -493,58 +537,59 @@ function filterSyncData() {
 }
 
 // ----------------------------------------------------
-// 2. SHOP TRANSACTIONS (S.C) LOGIC
+// 2. SHOP TRANSACTIONS (S.C) LOCAL & SYNC LOGIC
 // ----------------------------------------------------
 
-async function loadInitialScData() {
+async function fetchLatestScSerialNo() {
+  const serialElem = document.getElementById('sc-serial-no');
+  if (!serialElem) return;
+
   try {
     const response = await fetch(`${SC_FIREBASE_DB_URL}.json`);
     const data = await response.json();
-    scBillingRecords = [];
 
-    let maxSlNo = 0;
+    let maxSl = 0;
 
     if (data) {
-      Object.keys(data).forEach(firebaseKey => {
-        const item = data[firebaseKey];
-        scBillingRecords.unshift({
-          fbKey: firebaseKey,
-          isEdited: item.isEdited || false,
-          serviceName: item.serviceName || '-',
-          photoUrl: item.photoUrl || '-',
-          ...item
-        });
-
-        if (item.slNo && item.slNo.startsWith("S.C")) {
-          const numPart = parseInt(item.slNo.replace("S.C", ""), 10);
-          if (!isNaN(numPart) && numPart > maxSlNo) {
-            maxSlNo = numPart;
-          }
+      Object.values(data).forEach(item => {
+        if (item.slNo) {
+          const num = parseInt(item.slNo.replace(/[^0-9]/g, '')) || 0;
+          if (num > maxSl) maxSl = num;
         }
       });
     }
 
-    scSlCounter = maxSlNo + 1;
-    initScFormDefaults();
-    renderScReports();
-  } catch (error) {
-    console.error("Shop Firebase Load Error:", error);
+    scBillingRecords.forEach(item => {
+      if (item.slNo) {
+        const num = parseInt(item.slNo.replace(/[^0-9]/g, '')) || 0;
+        if (num > maxSl) maxSl = num;
+      }
+    });
+
+    scSlCounter = maxSl + 1;
+    localStorage.setItem('sc_sl_counter', scSlCounter);
+
+    if (scEditingRecordIndex === -1 && !scEditingCloudRecordKey) {
+      serialElem.value = formatScSerialNo(scSlCounter);
+    }
+  } catch (err) {
+    console.error("Error fetching latest Shop SL No:", err);
+    if (scEditingRecordIndex === -1 && !scEditingCloudRecordKey) {
+      serialElem.value = formatScSerialNo(scSlCounter);
+    }
   }
 }
 
 function initScFormDefaults() {
-  const serialElem = document.getElementById('sc-serial-no');
   const dateElem = document.getElementById('sc-date-time');
-
   const now = new Date();
   const formattedDateTime = now.toLocaleDateString('en-IN') + ' ' + now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
-  if (serialElem && scEditingRecordIndex === -1) {
-    serialElem.value = formatScSerialNo(scSlCounter);
-  }
-  if (dateElem && scEditingRecordIndex === -1) {
+  if (dateElem && scEditingRecordIndex === -1 && !scEditingCloudRecordKey) {
     dateElem.value = formattedDateTime;
   }
+
+  fetchLatestScSerialNo();
 }
 
 function calculateScPending() {
@@ -581,70 +626,57 @@ async function submitScTransaction() {
     dateTime: dateTime,
     name: custName,
     serviceName: serviceName,
-    aadhaar: idRef, // Ack No
+    aadhaar: idRef,
     withdraw: totalAmt, 
     paying: paidAmt,
     pending: pendingAmt,
     remarks: remarks,
     photoUrl: photoUrl,
     type: 'Shop',
+    isSynced: false,
     isEdited: false
   };
 
-  let savedRecord = { ...recordPayload };
-
-  if (scEditingRecordIndex > -1) {
-    const currentRecord = scBillingRecords[scEditingRecordIndex];
-    const fbKey = currentRecord ? currentRecord.fbKey : null;
-
-    recordPayload.fbKey = fbKey;
-    recordPayload.isEdited = true;
-
-    if (scEditingRecordIndex < scBillingRecords.length) {
-      scBillingRecords[scEditingRecordIndex] = recordPayload;
-    }
-
-    if (fbKey) {
-      try {
-        await fetch(`${SC_FIREBASE_DB_URL}/${fbKey}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(recordPayload)
-        });
-        showToastMessage("Shop Record updated in Firebase!");
-      } catch (err) {
-        console.error("Shop Firebase Edit Error:", err);
-      }
-    }
-    scEditingRecordIndex = -1;
-  } else {
+  if (scEditingCloudRecordKey) {
     try {
-      const response = await fetch(`${SC_FIREBASE_DB_URL}.json`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(recordPayload)
-      });
-      const resData = await response.json();
-      
-      if (resData && resData.name) {
-        savedRecord.fbKey = resData.name;
+      let finalPhoto = photoUrl;
+      if (photoUrl && photoUrl.startsWith('data:image')) {
+        finalPhoto = await uploadBase64ToCloudinary(photoUrl);
       }
-
-      scBillingRecords.unshift(savedRecord);
-      scSlCounter++;
-      showToastMessage("Shop Record saved successfully!");
-    } catch (error) {
-      console.error("Shop Firebase Save Error:", error);
-      scBillingRecords.unshift(savedRecord);
-      scSlCounter++;
-      showToastMessage("Saved locally!");
+      const cloudPayload = { ...recordPayload, photoUrl: finalPhoto, isSynced: true, fbKey: scEditingCloudRecordKey };
+      
+      await fetch(`${SC_FIREBASE_DB_URL}/${scEditingCloudRecordKey}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cloudPayload)
+      });
+      showToastMessage("Cloud Shop Record updated!");
+      scEditingCloudRecordKey = null;
+      syncInScDatabase();
+      openSection('sc-syncin');
+    } catch (e) {
+      console.error(e);
+      showToastMessage("Failed to update Cloud Shop Record.");
     }
+  } else if (scEditingRecordIndex > -1) {
+    scBillingRecords[scEditingRecordIndex] = { ...scBillingRecords[scEditingRecordIndex], ...recordPayload, isSynced: false, isEdited: true };
+    scEditingRecordIndex = -1;
+    showToastMessage("Shop Record updated locally!");
+    localStorage.setItem('sc_local_records', JSON.stringify(scBillingRecords));
+    renderScReports();
+    openSection('shop-menu');
+  } else {
+    scBillingRecords.unshift(recordPayload);
+    scSlCounter++;
+    localStorage.setItem('sc_sl_counter', scSlCounter);
+    showToastMessage("Shop Record saved locally!");
+    localStorage.setItem('sc_local_records', JSON.stringify(scBillingRecords));
+    renderScReports();
+    openSection('shop-menu');
   }
 
-  renderScReports();
   resetScBillingForm();
-  openSection('shop-menu');
-  openEBillFromRecord(savedRecord);
+  openEBillFromRecord(recordPayload);
 }
 
 function resetScBillingForm() {
@@ -662,6 +694,7 @@ function resetScBillingForm() {
   if (statusElem) statusElem.classList.add('hidden');
 
   scEditingRecordIndex = -1;
+  scEditingCloudRecordKey = null;
   initScFormDefaults();
   calculateScPending();
 }
@@ -673,7 +706,7 @@ function renderScReports() {
   tbody.innerHTML = '';
 
   if (scBillingRecords.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-gray-500">No Shop records found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">No Shop records found locally.</td></tr>`;
     return;
   }
 
@@ -682,9 +715,15 @@ function renderScReports() {
       ? `<button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="viewPhotoModal('${record.photoUrl}')">📷 View</button>` 
       : '-';
 
-    let actionBtnHTML = !record.isEdited 
-      ? `<button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="editScReportRecord(${index})">✏️ Edit</button>`
-      : `<span class="text-xs text-gray-500 font-semibold">Edited</span>`;
+    let syncBadge = record.isSynced 
+      ? `<span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full font-bold">Synced ✔️</span>` 
+      : `<span class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-bold">Pending ⏳</span>`;
+
+    // Edit button enable ONLY IF pending amount > 0
+    let hasPending = parseFloat(record.pending || 0) > 0;
+    let actionBtnHTML = hasPending 
+      ? `<button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="editScReportRecord(${index})">✏️ Edit</button>` 
+      : `<span class="text-xs text-gray-400 italic">No Pending</span>`;
 
     tbody.innerHTML += `
       <tr>
@@ -697,6 +736,7 @@ function renderScReports() {
         <td>₹${parseFloat(record.paying || 0).toFixed(2)}</td>
         <td class="font-bold ${(record.pending || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">₹${parseFloat(record.pending || 0).toFixed(2)}</td>
         <td>${photoBtn}</td>
+        <td>${syncBadge}</td>
         <td>${actionBtnHTML}</td>
       </tr>
     `;
@@ -706,6 +746,7 @@ function renderScReports() {
 function editScReportRecord(index) {
   const record = scBillingRecords[index];
   scEditingRecordIndex = index;
+  scEditingCloudRecordKey = null;
 
   openSection('sc-billing');
 
@@ -720,6 +761,53 @@ function editScReportRecord(index) {
   if (document.getElementById('sc-photo-url')) document.getElementById('sc-photo-url').value = record.photoUrl || '-';
 
   calculateScPending();
+}
+
+async function syncOutScData() {
+  const unsynced = scBillingRecords.filter(r => !r.isSynced);
+  if (unsynced.length === 0) {
+    showToastMessage("All Shop records are already synced!");
+    return;
+  }
+
+  showToastMessage("Syncing Shop records to Database...");
+
+  for (let record of scBillingRecords) {
+    if (!record.isSynced) {
+      try {
+        if (record.photoUrl && record.photoUrl.startsWith('data:image')) {
+          record.photoUrl = await uploadBase64ToCloudinary(record.photoUrl);
+        }
+
+        const cloudPayload = { ...record, isSynced: true };
+
+        let response;
+        if (record.fbKey) {
+          response = await fetch(`${SC_FIREBASE_DB_URL}/${record.fbKey}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cloudPayload)
+          });
+        } else {
+          response = await fetch(`${SC_FIREBASE_DB_URL}.json`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cloudPayload)
+          });
+          const resData = await response.json();
+          if (resData && resData.name) record.fbKey = resData.name;
+        }
+
+        record.isSynced = true;
+      } catch (err) {
+        console.error("Shop Sync-out Error:", err);
+      }
+    }
+  }
+
+  localStorage.setItem('sc_local_records', JSON.stringify(scBillingRecords));
+  renderScReports();
+  showToastMessage("Shop Sync-Out Completed ✔️");
 }
 
 function filterScReports() {
@@ -746,7 +834,6 @@ async function syncInScDatabase() {
       Object.keys(data).forEach(key => {
         scSyncedDatabaseRecords.unshift({
           fbKey: key,
-          isEdited: data[key].isEdited || false,
           serviceName: data[key].serviceName || '-',
           photoUrl: data[key].photoUrl || '-',
           ...data[key]
@@ -755,7 +842,7 @@ async function syncInScDatabase() {
     }
 
     renderScSyncInList();
-    showToastMessage("Shop Data synced!");
+    showToastMessage("Shop Cloud Data Fetched!");
   } catch (error) {
     console.error("Shop Firebase Fetch Error:", error);
     showToastMessage("Failed to fetch Shop data.");
@@ -770,7 +857,7 @@ function renderScSyncInList() {
   tbody.innerHTML = '';
 
   if (scSyncedDatabaseRecords.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-gray-500">Click 'Sync Now' to fetch records.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-gray-500">Click 'Fetch Database' to view cloud records.</td></tr>`;
     return;
   }
 
@@ -792,8 +879,8 @@ function renderScSyncInList() {
         <td>${photoBtn}</td>
         <td>
           <div class="flex gap-1">
+            <button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="editScCloudRecord(${index})">✏️ Edit</button>
             <button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="openScEBillModal(${index})">🧾 Bill</button>
-            <button class="t-btn t-btn-primary px-2 py-1 text-xs" onclick="editScSyncRecord(${index})">✏️ Edit</button>
             <button class="t-btn t-btn-warning px-2 py-1 text-xs bg-red-600" onclick="deleteScSyncRecord(${index})">🗑️</button>
           </div>
         </td>
@@ -802,20 +889,10 @@ function renderScSyncInList() {
   });
 }
 
-function openScEBillModal(index) {
+function editScCloudRecord(index) {
   const record = scSyncedDatabaseRecords[index];
-  openEBillFromRecord(record);
-}
-
-function editScSyncRecord(index) {
-  const record = scSyncedDatabaseRecords[index];
-
-  scEditingRecordIndex = scBillingRecords.findIndex(r => r.fbKey === record.fbKey || r.slNo === record.slNo);
-  
-  if (scEditingRecordIndex === -1) {
-    scBillingRecords.unshift(record);
-    scEditingRecordIndex = 0;
-  }
+  scEditingCloudRecordKey = record.fbKey;
+  scEditingRecordIndex = -1;
 
   openSection('sc-billing');
 
@@ -832,8 +909,13 @@ function editScSyncRecord(index) {
   calculateScPending();
 }
 
+function openScEBillModal(index) {
+  const record = scSyncedDatabaseRecords[index];
+  openEBillFromRecord(record);
+}
+
 async function deleteScSyncRecord(index) {
-  if (confirm("Delete this Shop record?")) {
+  if (confirm("Delete this Shop record permanently from cloud?")) {
     const record = scSyncedDatabaseRecords[index];
 
     if (record && record.fbKey) {
@@ -847,6 +929,7 @@ async function deleteScSyncRecord(index) {
 
     scSyncedDatabaseRecords.splice(index, 1);
     scBillingRecords = scBillingRecords.filter(r => r.fbKey !== record.fbKey);
+    localStorage.setItem('sc_local_records', JSON.stringify(scBillingRecords));
     renderScSyncInList();
     renderScReports();
   }
@@ -1100,6 +1183,8 @@ function printEBillThermal() {
     `Paid/Recv  : Rs. ${paying}\n` +
     `Pending    : Rs. ${pending}\n` +
     `Remarks    : ${remarks}\n` +
+    "--------------------------------\n\n" +
+    "       Authorised Signatory\n" +
     "--------------------------------\n" +
     "Thank You For Business!\n\n\n";
 
