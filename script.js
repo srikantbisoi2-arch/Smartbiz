@@ -32,6 +32,40 @@ document.addEventListener('DOMContentLoaded', () => {
   renderScReports();
 });
 
+// ----------------------------------------------------
+// DASHBOARD & NAVIGATION LOGIC
+// ----------------------------------------------------
+
+function openSection(sectionId) {
+  const dashboard = document.getElementById('dashboard');
+  if (dashboard) dashboard.style.display = 'none';
+
+  document.querySelectorAll('.tab-content').forEach(tab => {
+    tab.style.display = 'none';
+  });
+
+  const targetSection = document.getElementById(sectionId);
+  if (targetSection) {
+    targetSection.style.display = 'block';
+  } else if (dashboard) {
+    dashboard.style.display = 'block';
+  }
+
+  // Section-specific Auto Loads
+  if (sectionId === 'billing') initFormDefaults();
+  if (sectionId === 'sc-billing') initScFormDefaults();
+  if (sectionId === 'reports') renderReports();
+  if (sectionId === 'sc-reports') renderScReports();
+
+  // Auto-Fetch Database on Sync Screen Open
+  if (sectionId === 'syncin') syncInFromDatabase();
+  if (sectionId === 'sc-syncin') syncInScDatabase();
+}
+
+function goBackToDashboard() {
+  openSection('dashboard');
+}
+
 // Toast notification helper message
 function showToastMessage(message) {
   const toast = document.getElementById('toast-msg');
@@ -50,26 +84,51 @@ function formatScSerialNo(num) {
 }
 
 // ----------------------------------------------------
-// LOCAL PHOTO HANDLING & CLOUDINARY UPLOAD LOGIC
+// CAMERA PHOTO COMPRESSION & CLOUDINARY LOGIC
 // ----------------------------------------------------
+
+function compressCameraImage(file, maxWidth, quality, callback) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.src = e.target.result;
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+      callback(compressedBase64);
+    };
+  };
+  reader.readAsDataURL(file);
+}
 
 function handleLocalPhotoSelect(event, formType) {
   const file = event.target.files[0];
   if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    const base64Image = e.target.result;
-    document.getElementById(`${formType}-photo-url`).value = base64Image;
+  compressCameraImage(file, 800, 0.6, function(compressedBase64) {
+    document.getElementById(`${formType}-photo-url`).value = compressedBase64;
     const statusElem = document.getElementById(`${formType}-upload-status`);
     if (statusElem) {
       statusElem.classList.remove('hidden');
-      statusElem.innerText = "✓ Photo Captured Locally!";
+      statusElem.innerText = "✓ Photo Compressed & Saved Locally!";
       statusElem.style.color = "#059669";
     }
-    showToastMessage("Photo stored in local memory.");
-  };
-  reader.readAsDataURL(file);
+    showToastMessage("Photo compressed and stored in local memory.");
+  });
 }
 
 async function uploadBase64ToCloudinary(base64String) {
@@ -108,36 +167,6 @@ function viewPhotoModal(photoUrl) {
 function closePhotoViewer() {
   const modal = document.getElementById('photo-viewer-modal');
   if (modal) modal.style.display = 'none';
-}
-
-// ----------------------------------------------------
-// DASHBOARD & NAVIGATION LOGIC
-// ----------------------------------------------------
-
-function openSection(sectionId) {
-  const dashboard = document.getElementById('dashboard');
-  if (dashboard) dashboard.style.display = 'none';
-
-  document.querySelectorAll('.tab-content').forEach(tab => {
-    tab.style.display = 'none';
-  });
-
-  const targetSection = document.getElementById(sectionId);
-  if (targetSection) {
-    targetSection.style.display = 'block';
-  }
-
-  if (sectionId === 'billing') initFormDefaults();
-  if (sectionId === 'sc-billing') initScFormDefaults();
-}
-
-function goBackToDashboard() {
-  document.querySelectorAll('.tab-content').forEach(tab => {
-    tab.style.display = 'none';
-  });
-
-  const dashboard = document.getElementById('dashboard');
-  if (dashboard) dashboard.style.display = 'block';
 }
 
 // ----------------------------------------------------
@@ -286,7 +315,7 @@ function resetBillingForm() {
   if (document.getElementById('cust-id')) document.getElementById('cust-id').value = '';
   if (document.getElementById('withdraw-amt')) document.getElementById('withdraw-amt').value = '';
   if (document.getElementById('paying-amt')) document.getElementById('paying-amt').value = '';
-  if (document.getElementById('pending-amt')) document.getElementById('pending-amt').value = '';
+  if (document.getElementById('pending-amt')) document.getElementById('pending-amt').value = '0.00';
   if (document.getElementById('remarks')) document.getElementById('remarks').value = '';
   if (document.getElementById('aeps-photo-url')) document.getElementById('aeps-photo-url').value = '';
   if (document.getElementById('aeps-photo-input')) document.getElementById('aeps-photo-input').value = '';
@@ -307,7 +336,7 @@ function renderReports() {
   tbody.innerHTML = '';
 
   if (billingRecords.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-gray-500">No AEPS records found locally.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">No AEPS records found locally.</td></tr>`;
     return;
   }
 
@@ -320,11 +349,7 @@ function renderReports() {
       ? `<span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full font-bold">Synced ✔️</span>` 
       : `<span class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-bold">Pending ⏳</span>`;
 
-    // Edit button enable ONLY IF pending amount > 0
-    let hasPending = parseFloat(record.pending || 0) > 0;
-    let actionBtnHTML = hasPending 
-      ? `<button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="editReportRecord(${index})">✏️ Edit</button>` 
-      : `<span class="text-xs text-gray-400 italic">No Pending</span>`;
+    let actionBtnHTML = `<button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="editReportRecord(${index})">✏️ Edit</button>`;
 
     tbody.innerHTML += `
       <tr>
@@ -335,6 +360,7 @@ function renderReports() {
         <td>₹${parseFloat(record.withdraw || 0).toFixed(2)}</td>
         <td>₹${parseFloat(record.paying || 0).toFixed(2)}</td>
         <td class="font-bold ${(record.pending || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">₹${parseFloat(record.pending || 0).toFixed(2)}</td>
+        <td><small class="text-gray-600">${record.remarks || '-'}</small></td>
         <td>${photoBtn}</td>
         <td>${syncBadge}</td>
         <td>${actionBtnHTML}</td>
@@ -363,50 +389,54 @@ function editReportRecord(index) {
 }
 
 async function syncOutAepsData() {
-  const unsynced = billingRecords.filter(r => !r.isSynced);
-  if (unsynced.length === 0) {
-    showToastMessage("All records are already synced!");
+  if (billingRecords.length === 0) {
+    showToastMessage("No local records to sync!");
     return;
   }
 
   showToastMessage("Syncing records to Database...");
 
+  let updatedLocalRecords = [];
+
   for (let record of billingRecords) {
-    if (!record.isSynced) {
-      try {
-        if (record.photoUrl && record.photoUrl.startsWith('data:image')) {
-          record.photoUrl = await uploadBase64ToCloudinary(record.photoUrl);
-        }
-
-        const cloudPayload = { ...record, isSynced: true };
-
-        let response;
-        if (record.fbKey) {
-          response = await fetch(`${AEPS_FIREBASE_DB_URL}/${record.fbKey}.json`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(cloudPayload)
-          });
-        } else {
-          response = await fetch(`${AEPS_FIREBASE_DB_URL}.json`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(cloudPayload)
-          });
-          const resData = await response.json();
-          if (resData && resData.name) record.fbKey = resData.name;
-        }
-
-        record.isSynced = true;
-      } catch (err) {
-        console.error("Sync-out Error:", err);
+    try {
+      if (record.photoUrl && record.photoUrl.startsWith('data:image')) {
+        record.photoUrl = await uploadBase64ToCloudinary(record.photoUrl);
       }
+
+      const cloudPayload = { ...record, isSynced: true };
+
+      if (record.fbKey) {
+        await fetch(`${AEPS_FIREBASE_DB_URL}/${record.fbKey}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cloudPayload)
+        });
+      } else {
+        const response = await fetch(`${AEPS_FIREBASE_DB_URL}.json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cloudPayload)
+        });
+        const resData = await response.json();
+        if (resData && resData.name) record.fbKey = resData.name;
+      }
+
+      record.isSynced = true;
+
+      if (parseFloat(record.pending || 0) > 0) {
+        updatedLocalRecords.push(record);
+      }
+    } catch (err) {
+      console.error("Sync-out Error:", err);
+      updatedLocalRecords.push(record);
     }
   }
 
+  billingRecords = updatedLocalRecords;
   localStorage.setItem('aeps_local_records', JSON.stringify(billingRecords));
   renderReports();
-  showToastMessage("AEPS Sync-Out Completed ✔️");
+  showToastMessage("AEPS Sync-Out Completed!");
 }
 
 function filterReports() {
@@ -421,7 +451,7 @@ function filterReports() {
 
 async function syncInFromDatabase() {
   const tbody = document.getElementById('syncin-list');
-  if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4">Fetching records...</td></tr>`;
+  if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-blue-600 font-semibold">🔄 Auto-Fetching cloud records...</td></tr>`;
 
   try {
     const response = await fetch(`${AEPS_FIREBASE_DB_URL}.json`);
@@ -440,7 +470,7 @@ async function syncInFromDatabase() {
     }
 
     renderSyncInList();
-    showToastMessage("AEPS Cloud Data Fetched!");
+    showToastMessage("AEPS Cloud Data Refreshed!");
   } catch (error) {
     console.error("AEPS Sync Error:", error);
     showToastMessage("Failed to fetch AEPS data.");
@@ -455,7 +485,7 @@ function renderSyncInList() {
   tbody.innerHTML = '';
 
   if (syncedDatabaseRecords.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-gray-500">Click 'Fetch Database' to view cloud records.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-gray-500">No records found in cloud database.</td></tr>`;
     return;
   }
 
@@ -473,6 +503,7 @@ function renderSyncInList() {
         <td>₹${parseFloat(record.withdraw || 0).toFixed(2)}</td>
         <td>₹${parseFloat(record.paying || 0).toFixed(2)}</td>
         <td class="font-bold ${(record.pending || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">₹${parseFloat(record.pending || 0).toFixed(2)}</td>
+        <td><small class="text-gray-600">${record.remarks || '-'}</small></td>
         <td>${photoBtn}</td>
         <td>
           <div class="flex gap-1">
@@ -534,6 +565,215 @@ function filterSyncData() {
     const text = row.innerText.toLowerCase();
     row.style.display = text.includes(query) ? '' : 'none';
   });
+}
+
+// ----------------------------------------------------
+// EXCEL & FORMATTED TABLE PDF REPORT DOWNLOAD LOGIC
+// ----------------------------------------------------
+
+function downloadAepsExcel() {
+  if (syncedDatabaseRecords.length === 0) {
+    alert("No fetched AEPS data available to export.");
+    return;
+  }
+
+  const exportData = syncedDatabaseRecords.map((item, idx) => ({
+    "S.No": idx + 1,
+    "Serial No": item.slNo || '-',
+    "Date & Time": item.dateTime || '-',
+    "Customer Name": item.name || '-',
+    "Ref / ID": item.aadhaar || '-',
+    "Withdraw Amount (Rs)": parseFloat(item.withdraw || 0).toFixed(2),
+    "Paying Amount (Rs)": parseFloat(item.paying || 0).toFixed(2),
+    "Pending Amount (Rs)": parseFloat(item.pending || 0).toFixed(2),
+    "Remarks": item.remarks || '-'
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "AEPS Transactions");
+
+  XLSX.writeFile(workbook, `AEPS_Database_Report_${Date.now()}.xlsx`);
+  showToastMessage("AEPS Excel downloaded!");
+}
+
+function downloadScExcel() {
+  if (scSyncedDatabaseRecords.length === 0) {
+    alert("No fetched Shop data available to export.");
+    return;
+  }
+
+  const exportData = scSyncedDatabaseRecords.map((item, idx) => ({
+    "S.No": idx + 1,
+    "Serial No": item.slNo || '-',
+    "Date & Time": item.dateTime || '-',
+    "Applicant Name": item.name || '-',
+    "Service Name": item.serviceName || '-',
+    "Ack / Ref No": item.aadhaar || '-',
+    "Total Bill Amount (Rs)": parseFloat(item.withdraw || 0).toFixed(2),
+    "Receiving Amount (Rs)": parseFloat(item.paying || 0).toFixed(2),
+    "Pending Amount (Rs)": parseFloat(item.pending || 0).toFixed(2),
+    "Remarks": item.remarks || '-'
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Shop Transactions");
+
+  XLSX.writeFile(workbook, `Shop_Database_Report_${Date.now()}.xlsx`);
+  showToastMessage("Shop Excel downloaded!");
+}
+
+// 📄 Clean Table (Row & Column) PDF Report for AEPS
+function downloadAepsPdfReport() {
+  if (syncedDatabaseRecords.length === 0) {
+    alert("No fetched AEPS data available for PDF report.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('landscape', 'mm', 'a4');
+
+  // Title Header
+  doc.setFontSize(16);
+  doc.setTextColor(37, 99, 235); // Blue Accent
+  doc.text("SMART LEDGER - AEPS TRANSACTIONS REPORT", 14, 15);
+
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Generated On: ${new Date().toLocaleString('en-IN')}`, 14, 21);
+
+  // Define Columns & Rows
+  const tableColumns = [
+    "S.No", "SL No", "Date & Time", "Customer Name", "Ref / ID", 
+    "Withdraw (Rs)", "Paying (Rs)", "Pending (Rs)", "Remarks"
+  ];
+
+  const tableRows = syncedDatabaseRecords.map((item, index) => [
+    index + 1,
+    item.slNo || '-',
+    item.dateTime || '-',
+    item.name || '-',
+    item.aadhaar || '-',
+    `Rs. ${parseFloat(item.withdraw || 0).toFixed(2)}`,
+    `Rs. ${parseFloat(item.paying || 0).toFixed(2)}`,
+    `Rs. ${parseFloat(item.pending || 0).toFixed(2)}`,
+    item.remarks || '-'
+  ]);
+
+  // Generate Table using jsPDF AutoTable
+  doc.autoTable({
+    head: [tableColumns],
+    body: tableRows,
+    startY: 26,
+    theme: 'grid',
+    headStyles: { 
+      fillColor: [37, 99, 235], 
+      textColor: [255, 255, 255], 
+      fontSize: 9, 
+      fontStyle: 'bold', 
+      halign: 'center' 
+    },
+    bodyStyles: { 
+      fontSize: 8, 
+      textColor: [30, 41, 59] 
+    },
+    alternateRowStyles: { 
+      fillColor: [248, 250, 252] 
+    },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 12 },
+      1: { halign: 'center', cellWidth: 22 },
+      2: { cellWidth: 35 },
+      3: { cellWidth: 40 },
+      4: { cellWidth: 32 },
+      5: { halign: 'right', cellWidth: 28 },
+      6: { halign: 'right', cellWidth: 28 },
+      7: { halign: 'right', cellWidth: 28 },
+      8: { cellWidth: 'auto' }
+    },
+    margin: { top: 25, left: 14, right: 14, bottom: 15 }
+  });
+
+  doc.save(`AEPS_Structured_Report_${Date.now()}.pdf`);
+  showToastMessage("AEPS Table PDF downloaded!");
+}
+
+// 📄 Clean Table (Row & Column) PDF Report for Shop
+function downloadScPdfReport() {
+  if (scSyncedDatabaseRecords.length === 0) {
+    alert("No fetched Shop data available for PDF report.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('landscape', 'mm', 'a4');
+
+  // Title Header
+  doc.setFontSize(16);
+  doc.setTextColor(5, 150, 105); // Emerald Accent
+  doc.text("SMART LEDGER - SHOP (S.C) TRANSACTIONS REPORT", 14, 15);
+
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(`Generated On: ${new Date().toLocaleString('en-IN')}`, 14, 21);
+
+  // Define Columns & Rows
+  const tableColumns = [
+    "S.No", "SL No", "Date & Time", "Applicant Name", "Service", "Ack No", 
+    "Total (Rs)", "Receiving (Rs)", "Pending (Rs)", "Remarks"
+  ];
+
+  const tableRows = scSyncedDatabaseRecords.map((item, index) => [
+    index + 1,
+    item.slNo || '-',
+    item.dateTime || '-',
+    item.name || '-',
+    item.serviceName || '-',
+    item.aadhaar || '-',
+    `Rs. ${parseFloat(item.withdraw || 0).toFixed(2)}`,
+    `Rs. ${parseFloat(item.paying || 0).toFixed(2)}`,
+    `Rs. ${parseFloat(item.pending || 0).toFixed(2)}`,
+    item.remarks || '-'
+  ]);
+
+  // Generate Table using jsPDF AutoTable
+  doc.autoTable({
+    head: [tableColumns],
+    body: tableRows,
+    startY: 26,
+    theme: 'grid',
+    headStyles: { 
+      fillColor: [5, 150, 105], 
+      textColor: [255, 255, 255], 
+      fontSize: 9, 
+      fontStyle: 'bold', 
+      halign: 'center' 
+    },
+    bodyStyles: { 
+      fontSize: 8, 
+      textColor: [30, 41, 59] 
+    },
+    alternateRowStyles: { 
+      fillColor: [240, 253, 244] 
+    },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 12 },
+      1: { halign: 'center', cellWidth: 22 },
+      2: { cellWidth: 32 },
+      3: { cellWidth: 35 },
+      4: { cellWidth: 30 },
+      5: { cellWidth: 28 },
+      6: { halign: 'right', cellWidth: 25 },
+      7: { halign: 'right', cellWidth: 25 },
+      8: { halign: 'right', cellWidth: 25 },
+      9: { cellWidth: 'auto' }
+    },
+    margin: { top: 25, left: 14, right: 14, bottom: 15 }
+  });
+
+  doc.save(`Shop_Structured_Report_${Date.now()}.pdf`);
+  showToastMessage("Shop Table PDF downloaded!");
 }
 
 // ----------------------------------------------------
@@ -685,7 +925,7 @@ function resetScBillingForm() {
   if (document.getElementById('sc-cust-id')) document.getElementById('sc-cust-id').value = '';
   if (document.getElementById('sc-total-amt')) document.getElementById('sc-total-amt').value = '';
   if (document.getElementById('sc-paid-amt')) document.getElementById('sc-paid-amt').value = '';
-  if (document.getElementById('sc-pending-amt')) document.getElementById('sc-pending-amt').value = '';
+  if (document.getElementById('sc-pending-amt')) document.getElementById('sc-pending-amt').value = '0.00';
   if (document.getElementById('sc-remarks')) document.getElementById('sc-remarks').value = '';
   if (document.getElementById('sc-photo-url')) document.getElementById('sc-photo-url').value = '';
   if (document.getElementById('sc-photo-input')) document.getElementById('sc-photo-input').value = '';
@@ -706,7 +946,7 @@ function renderScReports() {
   tbody.innerHTML = '';
 
   if (scBillingRecords.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">No Shop records found locally.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="text-center py-4 text-gray-500">No Shop records found locally.</td></tr>`;
     return;
   }
 
@@ -719,11 +959,7 @@ function renderScReports() {
       ? `<span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full font-bold">Synced ✔️</span>` 
       : `<span class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-bold">Pending ⏳</span>`;
 
-    // Edit button enable ONLY IF pending amount > 0
-    let hasPending = parseFloat(record.pending || 0) > 0;
-    let actionBtnHTML = hasPending 
-      ? `<button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="editScReportRecord(${index})">✏️ Edit</button>` 
-      : `<span class="text-xs text-gray-400 italic">No Pending</span>`;
+    let actionBtnHTML = `<button class="t-btn t-btn-accent px-2 py-1 text-xs" onclick="editScReportRecord(${index})">✏️ Edit</button>`;
 
     tbody.innerHTML += `
       <tr>
@@ -735,6 +971,7 @@ function renderScReports() {
         <td>₹${parseFloat(record.withdraw || 0).toFixed(2)}</td>
         <td>₹${parseFloat(record.paying || 0).toFixed(2)}</td>
         <td class="font-bold ${(record.pending || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">₹${parseFloat(record.pending || 0).toFixed(2)}</td>
+        <td><small class="text-gray-600">${record.remarks || '-'}</small></td>
         <td>${photoBtn}</td>
         <td>${syncBadge}</td>
         <td>${actionBtnHTML}</td>
@@ -764,50 +1001,54 @@ function editScReportRecord(index) {
 }
 
 async function syncOutScData() {
-  const unsynced = scBillingRecords.filter(r => !r.isSynced);
-  if (unsynced.length === 0) {
-    showToastMessage("All Shop records are already synced!");
+  if (scBillingRecords.length === 0) {
+    showToastMessage("No local Shop records to sync!");
     return;
   }
 
   showToastMessage("Syncing Shop records to Database...");
 
+  let updatedScLocalRecords = [];
+
   for (let record of scBillingRecords) {
-    if (!record.isSynced) {
-      try {
-        if (record.photoUrl && record.photoUrl.startsWith('data:image')) {
-          record.photoUrl = await uploadBase64ToCloudinary(record.photoUrl);
-        }
-
-        const cloudPayload = { ...record, isSynced: true };
-
-        let response;
-        if (record.fbKey) {
-          response = await fetch(`${SC_FIREBASE_DB_URL}/${record.fbKey}.json`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(cloudPayload)
-          });
-        } else {
-          response = await fetch(`${SC_FIREBASE_DB_URL}.json`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(cloudPayload)
-          });
-          const resData = await response.json();
-          if (resData && resData.name) record.fbKey = resData.name;
-        }
-
-        record.isSynced = true;
-      } catch (err) {
-        console.error("Shop Sync-out Error:", err);
+    try {
+      if (record.photoUrl && record.photoUrl.startsWith('data:image')) {
+        record.photoUrl = await uploadBase64ToCloudinary(record.photoUrl);
       }
+
+      const cloudPayload = { ...record, isSynced: true };
+
+      if (record.fbKey) {
+        await fetch(`${SC_FIREBASE_DB_URL}/${record.fbKey}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cloudPayload)
+        });
+      } else {
+        const response = await fetch(`${SC_FIREBASE_DB_URL}.json`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cloudPayload)
+        });
+        const resData = await response.json();
+        if (resData && resData.name) record.fbKey = resData.name;
+      }
+
+      record.isSynced = true;
+
+      if (parseFloat(record.pending || 0) > 0) {
+        updatedScLocalRecords.push(record);
+      }
+    } catch (err) {
+      console.error("Shop Sync-out Error:", err);
+      updatedScLocalRecords.push(record);
     }
   }
 
+  scBillingRecords = updatedScLocalRecords;
   localStorage.setItem('sc_local_records', JSON.stringify(scBillingRecords));
   renderScReports();
-  showToastMessage("Shop Sync-Out Completed ✔️");
+  showToastMessage("Shop Sync-Out Completed!");
 }
 
 function filterScReports() {
@@ -822,7 +1063,7 @@ function filterScReports() {
 
 async function syncInScDatabase() {
   const tbody = document.getElementById('sc-syncin-list');
-  if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4">Fetching S.C records...</td></tr>`;
+  if (tbody) tbody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-emerald-600 font-semibold">🔄 Auto-Fetching Shop cloud records...</td></tr>`;
 
   try {
     const response = await fetch(`${SC_FIREBASE_DB_URL}.json`);
@@ -842,7 +1083,7 @@ async function syncInScDatabase() {
     }
 
     renderScSyncInList();
-    showToastMessage("Shop Cloud Data Fetched!");
+    showToastMessage("Shop Cloud Data Refreshed!");
   } catch (error) {
     console.error("Shop Firebase Fetch Error:", error);
     showToastMessage("Failed to fetch Shop data.");
@@ -857,7 +1098,7 @@ function renderScSyncInList() {
   tbody.innerHTML = '';
 
   if (scSyncedDatabaseRecords.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-gray-500">Click 'Fetch Database' to view cloud records.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-4 text-gray-500">No Shop records found in cloud database.</td></tr>`;
     return;
   }
 
@@ -876,6 +1117,7 @@ function renderScSyncInList() {
         <td>₹${parseFloat(record.withdraw || 0).toFixed(2)}</td>
         <td>₹${parseFloat(record.paying || 0).toFixed(2)}</td>
         <td class="font-bold ${(record.pending || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">₹${parseFloat(record.pending || 0).toFixed(2)}</td>
+        <td><small class="text-gray-600">${record.remarks || '-'}</small></td>
         <td>${photoBtn}</td>
         <td>
           <div class="flex gap-1">
@@ -1184,7 +1426,8 @@ function printEBillThermal() {
     `Pending    : Rs. ${pending}\n` +
     `Remarks    : ${remarks}\n` +
     "--------------------------------\n\n" +
-    "       Authorised Signatory\n" +
+    "       Srikant Bishoyi\n" +
+    "    Authorised Signatory\n" +
     "--------------------------------\n" +
     "Thank You For Business!\n\n\n";
 
